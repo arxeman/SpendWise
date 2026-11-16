@@ -1,0 +1,112 @@
+
+.transactions-container {
+    max-width: 1100px;
+    margin: auto;
+    padding: 30px;
+}
+
+.transactions-container h1 {
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.page-subtitle {
+    color: #6b7280;
+    margin-bottom: 30px;
+}
+
+.transaction-form-card,
+.transaction-list-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.05);
+}
+
+.transaction-form-card h2,
+.transaction-list-card h2 {
+    margin-bottom: 20px;
+}
+
+.transaction-form-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.transaction-form-card label {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.transaction-form-card input,
+.transaction-form-card select,
+.transaction-form-card textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    font-size: 15px;
+}
+
+.transaction-form-card textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+
+.transaction-form-card button {
+    padding: 13px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 7px;
+    font-size: 15px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.transaction-form-card button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.transaction-message {
+    margin-top: 15px;
+    color: #2563eb;
+}
+
+.transaction-list-card {
+    overflow: hidden;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 14px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+th {
+    background: #f9fafb;
+}
+
+@media (max-width: 600px) {
+    .transactions-container {
+        padding: 15px;
+    }
+
+    .transaction-form-card,
+    .transaction-list-card {
+        padding: 18px;
+    }
+}
