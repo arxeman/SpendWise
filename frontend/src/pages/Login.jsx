@@ -1,103 +1,54 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../services/api";
-import "./Register.css";
+import AuthLayout from "../components/AuthLayout";
+import PasswordInput from "../components/PasswordInput";
 
 function Login() {
     const navigate = useNavigate();
-
-    const [formData, setFormData] = useState({
-        email: "",
-        password: ""
-    });
-
-    const [message, setMessage] = useState("");
+    const [form, setForm] = useState({ email: "", password: "" });
+    const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
+    const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-    const handleSubmit = async (e) => {
+    const onSubmit = async (e) => {
         e.preventDefault();
-
-        setMessage("");
+        setError("");
         setLoading(true);
-
         try {
-            const response = await API.post(
-                "/auth/login",
-                formData
-            );
-
-            const { token, id, name, email } = response.data.data;
-
-            // Store authentication details
+            const { data } = await API.post("/auth/login", form);
+            const { token, id, name, email } = data.data;
             localStorage.setItem("token", token);
-
-            localStorage.setItem(
-                "user",
-                JSON.stringify({ id, name, email })
-            );
-
-            setMessage("Login successful!");
-
-            navigate("/dashboard");
-
-        } catch (error) {
-            setMessage(
-                error.response?.data?.message ||
-                "Login failed. Please try again."
-            );
-        } finally {
+            localStorage.setItem("user", JSON.stringify({ id, name, email }));
+            navigate("/dashboard", { replace: true });
+        } catch (err) {
+            setError(err.response?.data?.message || "Can't reach the server. Try again in a moment.");
             setLoading(false);
         }
     };
 
     return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <h1>SpendWise</h1>
-                <p>Welcome back! Login to continue.</p>
-
-                <form onSubmit={handleSubmit}>
-                    <input
-                        type="email"
-                        name="email"
-                        placeholder="Email Address"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                    />
-
-                    <input
-                        type="password"
-                        name="password"
-                        placeholder="Password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        required
-                    />
-
-                    <button type="submit" disabled={loading}>
-                        {loading ? "Logging in..." : "Login"}
-                    </button>
-                </form>
-
-                {message && (
-                    <p className="auth-message">{message}</p>
-                )}
-
-                <p>
-                    Don't have an account?{" "}
-                    <Link to="/register">Register</Link>
-                </p>
-            </div>
-        </div>
+        <AuthLayout
+            title="Welcome back"
+            subtitle="Log in to see your balance and recent activity."
+            footer={<>New here? <Link to="/register">Create an account</Link></>}
+        >
+            <form onSubmit={onSubmit} className="auth-fields">
+                <div className="field">
+                    <label htmlFor="email">Email</label>
+                    <input id="email" className="input" type="email" name="email" autoComplete="email" value={form.email} onChange={onChange} required />
+                </div>
+                <div className="field">
+                    <label htmlFor="password">Password</label>
+                    <PasswordInput id="password" name="password" autoComplete="current-password" value={form.password} onChange={onChange} required />
+                </div>
+                {error && <p className="form-error" role="alert">{error}</p>}
+                <button className="btn btn-primary btn-block btn-lg" disabled={loading}>
+                    {loading ? "Logging in…" : "Log in"}
+                </button>
+            </form>
+        </AuthLayout>
     );
 }
 

@@ -1,289 +1,150 @@
-import Navbar from "../components/Navbar";
-import { useEffect, useState } from "react";
-import API from "../services/api";
-import "./Transactions.css";
+import { useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import Icon from "../components/Icon";
+import TxRow from "../components/TxRow";
+import { useTransactions } from "../context/transactionsStore";
+import { useToast } from "../context/toastContext";
+import { dateKey, dayLabel, inr, monthKey, monthLabel } from "../utils/format";
 
 function Transactions() {
-    const [transactions, setTransactions] = useState([]);
+    const { items, loading, error, refresh } = useTransactions();
+    const { openAdd, openEdit, askDelete } = useOutletContext();
+    const toast = useToast();
 
-    const [formData, setFormData] = useState({
-        title: "",
-        amount: "",
-        type: "expense",
-        category: "Food",
-        date: new Date().toISOString().split("T")[0],
-        description: ""
-    });
+    const [q, setQ] = useState("");
+    const [type, setType] = useState("all");
+    const [category, setCategory] = useState("all");
+    const [month, setMonth] = useState("all");
 
-    const [message, setMessage] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [editingId, setEditingId] = useState(null);
-    const fetchTransactions = async () => {
-        try {
-            const response = await API.get("/transactions");
-            setTransactions(response.data.data);
-        } catch (error) {
-            setMessage("Unable to load transactions");
-        }
+    const months = useMemo(() => [...new Set(items.map((t) => monthKey(t.date)))].sort().reverse(), [items]);
+    const categories = useMemo(() => [...new Set(items.map((t) => t.category))].sort(), [items]);
+
+    const filtered = useMemo(() => {
+        const needle = q.trim().toLowerCase();
+        return items.filter((t) =>
+            (type === "all" || t.type === type) &&
+            (category === "all" || t.category === category) &&
+            (month === "all" || monthKey(t.date) === month) &&
+            (!needle || `${t.title} ${t.category} ${t.description || ""}`.toLowerCase().includes(needle))
+        );
+    }, [items, q, type, category, month]);
+
+    const totals = useMemo(() => {
+        const income = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+        const expense = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+        return { income, expense, net: income - expense };
+    }, [filtered]);
+
+    const groups = useMemo(() => {
+        const map = new Map();
+        filtered.forEach((t) => {
+            const k = dateKey(t.date);
+            if (!map.has(k)) map.set(k, []);
+            map.get(k).push(t);
+        });
+        return [...map.entries()];
+    }, [filtered]);
+
+    const filtersOn = q || type !== "all" || category !== "all" || month !== "all";
+    const clear = () => { setQ(""); setType("all"); setCategory("all"); setMonth("all"); };
+
+    const exportCsv = () => {
+        const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const rows = [["Date", "Title", "Type", "Category", "Amount", "Note"],
+            ...filtered.map((t) => [dateKey(t.date), t.title, t.type, t.category, t.amount, t.description])];
+        const blob = new Blob([rows.map((r) => r.map(esc).join(",")).join("\n")], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `spendwise-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast(`Exported ${filtered.length} transactions`);
     };
-    const handleDelete = async (id) => {
-    const confirmDelete = window.confirm(
-        "Are you sure you want to delete this transaction?"
-    );
 
-    if (!confirmDelete) return;
-
-    try {
-        await API.delete(`/transactions/${id}`);
-
-        setMessage("Transaction deleted successfully!");
-
-        await fetchTransactions();
-
-    } catch (error) {
-        setMessage(
-            error.response?.data?.message ||
-            "Unable to delete transaction"
+    if (error) {
+        return (
+            <div className="state-card">
+                <h2>Couldn't load transactions</h2>
+                <p>{error}</p>
+                <button className="btn btn-primary" onClick={refresh}>Try again</button>
+            </div>
         );
     }
-};
-    useEffect(() => {
-        fetchTransactions();
-    }, []);
-
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setMessage("");
-        setLoading(true);
-
-        try {
-    //         if (editingId) {
-    // await API.put(`/transactions/${editingId}`, {
-    //     ...formData,
-    //     amount: Number(formData.amount)
-    // });
-    if (editingId) {
-    
-    const response = await API.put(`/transactions/${editingId}`, {
-        ...formData,
-        amount: Number(formData.amount)
-    });
-
-    
-    setMessage("Transaction updated successfully!");
-    setEditingId(null);
-
-} else {
-    await API.post("/transactions", {
-        ...formData,
-        amount: Number(formData.amount)
-    });
-
-    setMessage("Transaction added successfully!");
-    
-}/*await API.post("/transactions", {
-                ...formData,
-                amount: Number(formData.amount)
-            });
-
-            setMessage("Transaction added successfully!");
-          */
-            setFormData({
-                title: "",
-                amount: "",
-                type: "expense",
-                category: "Food",
-                date: new Date().toISOString().split("T")[0],
-                description: ""
-            });
-
-            await fetchTransactions();
-
-        } catch (error) {
-            setMessage(
-                error.response?.data?.message ||
-                "Unable to add transaction"
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
 
     return (
-      <>
-        <Navbar />
-        <div className="transactions-container">
-
-            <h1>Transactions</h1>
-            <p className="page-subtitle">
-                Track your income and expenses.
-            </p>
-
-            <div className="transaction-form-card">
-                <h2>Add New Transaction</h2>
-
-                <form onSubmit={handleSubmit}>
-
-                    <label>Transaction Title</label>
-                    <input
-                        type="text"
-                        name="title"
-                        placeholder="e.g. College Lunch"
-                        value={formData.title}
-                        onChange={handleChange}
-                        required
-                    />
-
-                    <label>Amount (₹)</label>
-                    <input
-                        type="number"
-                        name="amount"
-                        placeholder="Enter amount"
-                        min="0.01"
-                        step="0.01"
-                        value={formData.amount}
-                        onChange={handleChange}
-                        onWheel={(e)=>e.currentTarget.blur()}
-                        required
-                    />
-
-                    <label>Transaction Type</label>
-                    <select
-                        name="type"
-                        value={formData.type}
-                        onChange={handleChange}
-                    >
-                        <option value="expense">Expense</option>
-                        <option value="income">Income</option>
-                    </select>
-
-                    <label>Category</label>
-                    <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleChange}
-                    >
-                        <option value="Food">Food</option>
-                        <option value="Travel">Travel</option>
-                        <option value="Shopping">Shopping</option>
-                        <option value="Education">Education</option>
-                        <option value="Salary">Salary</option>
-                        <option value="Entertainment">Entertainment</option>
-                        <option value="Other">Other</option>
-                    </select>
-
-                    <label>Date</label>
-                    <input
-                        type="date"
-                        name="date"
-                        value={formData.date}
-                        onChange={handleChange}
-                        required
-                    />
-
-                    <label>Description</label>
-                    <textarea
-                        name="description"
-                        placeholder="Optional description"
-                        value={formData.description}
-                        onChange={handleChange}
-                    />
-
-                    <button type="submit" disabled={loading}>
-                      {loading
-                      ? "Saving..."
-                      : editingId
-                      ? "Update Transaction"
-                      : "Add Transaction"}
+        <>
+            <header className="page-head">
+                <div>
+                    <h1>Transactions</h1>
+                    <p>{loading ? "Loading…" : `${items.length} total`}</p>
+                </div>
+                <div className="head-actions">
+                    <button className="btn btn-ghost" onClick={exportCsv} disabled={!filtered.length}>
+                        <Icon name="download" size={17} /> Export CSV
                     </button>
+                    <button className="btn btn-primary desk-only" onClick={openAdd}>
+                        <Icon name="plus" size={18} /> Add transaction
+                    </button>
+                </div>
+            </header>
 
-                </form>
+            <section className="card toolbar">
+                <label className="search">
+                    <Icon name="search" size={18} />
+                    <span className="sr">Search transactions</span>
+                    <input placeholder="Search by title, category or note" value={q} onChange={(e) => setQ(e.target.value)} />
+                </label>
+                <div className="seg" role="group" aria-label="Filter by type">
+                    {["all", "expense", "income"].map((t) => (
+                        <button key={t} className={type === t ? "on" : ""} onClick={() => setType(t)}>
+                            {t === "all" ? "All" : t === "expense" ? "Spent" : "Earned"}
+                        </button>
+                    ))}
+                </div>
+                <select className="input select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+                    <option value="all">All categories</option>
+                    {categories.map((c) => <option key={c}>{c}</option>)}
+                </select>
+                <select className="input select" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+                    <option value="all">All time</option>
+                    {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+                </select>
+            </section>
 
-                {message && <p className="transaction-message">{message}</p>}
-            </div>
+            {!loading && filtered.length > 0 && (
+                <div className="totals">
+                    <div><small>Earned</small><strong className="pos">{inr(totals.income)}</strong></div>
+                    <div><small>Spent</small><strong>{inr(totals.expense)}</strong></div>
+                    <div><small>Net</small><strong className={totals.net >= 0 ? "pos" : "neg"}>{totals.net >= 0 ? "+" : "−"}{inr(Math.abs(totals.net))}</strong></div>
+                </div>
+            )}
 
-            <div className="transaction-list-card">
-                <h2>All Transactions</h2>
-
-                {transactions.length === 0 ? (
-                    <p>No transactions added yet.</p>
-                ) : (
-                    <div className="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Category</th>
-                                    <th>Type</th>
-                                    <th>Amount</th>
-                                    <th>Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {transactions.map((transaction) => (
-                                    <tr key={transaction._id}>
-                                        <td>{transaction.title}</td>
-                                        <td>{transaction.category}</td>
-                                        <td>{transaction.type}</td>
-                                        <td>
-                                            ₹{transaction.amount.toLocaleString("en-IN")}
-                                        </td>
-                                        <td>
-                                            {new Date(transaction.date).toLocaleDateString("en-IN")}
-                                        </td>
-                                        <td>
-    <button
-        onClick={() => {
-            setEditingId(transaction._id);
-
-            setFormData({
-                title: transaction.title,
-                amount: String(transaction.amount),
-                type: transaction.type,
-                category: transaction.category,
-                date: new Date(transaction.date)
-                    .toISOString()
-                    .split("T")[0],
-                description: transaction.description || ""
-            });
-
-            window.scrollTo({
-                top: 0,
-                behavior: "smooth"
-            });
-        }}
-    >
-        Edit
-    </button>
-
-    <button
-        onClick={() => handleDelete(transaction._id)}
-        style={{ backgroundColor: "#dc2626" }}
-    >
-        Delete
-    </button>
-</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
-        </div>
-      </>
+            {loading ? (
+                <div className="card"><div className="sk" style={{ height: 64, marginBottom: 12 }} /><div className="sk" style={{ height: 64, marginBottom: 12 }} /><div className="sk" style={{ height: 64 }} /></div>
+            ) : items.length === 0 ? (
+                <div className="card empty">
+                    <h3>No transactions yet</h3>
+                    <p>Log your first income or expense to start tracking.</p>
+                    <button className="btn btn-primary" onClick={openAdd}><Icon name="plus" size={18} /> Add transaction</button>
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="card empty">
+                    <h3>No matches</h3>
+                    <p>Nothing fits those filters.</p>
+                    {filtersOn && <button className="btn btn-ghost" onClick={clear}>Clear filters</button>}
+                </div>
+            ) : (
+                groups.map(([k, list]) => (
+                    <section className="day" key={k}>
+                        <h2 className="day-label">{dayLabel(k)}</h2>
+                        <ul className="card tx-list">
+                            {list.map((t) => <TxRow key={t._id} tx={t} onEdit={openEdit} onDelete={askDelete} />)}
+                        </ul>
+                    </section>
+                ))
+            )}
+        </>
     );
-  
 }
 
 export default Transactions;
